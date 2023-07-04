@@ -3,15 +3,22 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from bs4 import BeautifulSoup
 import time
-from fastapi.encoders import jsonable_encoder
-
+import asyncio
 import db
 
+db_con = db.db_conn()
+loop = db_con.get_io_loop()
 
-if __name__ == "__main__":
-    db_con = db.db_conn()
-    db_flood = db_con[db.db_name]
-    db_waterlvl = db_flood[db.db_collection]
+# db_flood = db_con[db.db_name]
+# db_waterlvl = db_flood[db.db_collection]
+
+
+async def do_insert(document):
+    result = await db_con["flood"]["waterlvl"].insert_one(document)
+    print('result %s' % repr(result.inserted_id))
+
+
+def main():    
     brave_path = '/usr/bin/brave-browser'  # Path to the Brave browser executable
     chromedriver_path = 'chromedriver'  # Path to the ChromeDriver executable
 
@@ -21,12 +28,11 @@ if __name__ == "__main__":
 
     service = Service(chromedriver_path)
 
-
     driver = webdriver.Chrome(service=service, options=options)
 
     driver.get('https://bipadportal.gov.np/realtime/')
 
-    time.sleep(5)
+    time.sleep(10)
 
     rain_click = driver.find_element(By.CSS_SELECTOR, "#root > div > div > div > aside.styles_right_Gs3gKM3HFooUsd8CN5dtV > div.styles_right-content-container_1iVqdlST5-qcbQ0ln7tgGV > form > div.styles_real-time-sources-input_WXT1Dn0Af17zV1pLCgm4a.styles_list-selection_2alYshyZHzILhBxplw-Pmv.list-selection.single-segment > div.styles_options_1hBg1mRW-swCWsYh4K61S-.list-selection-options.styles_list-view_UYFRAKwTT4EXYh81gYQY2.list-view > label:nth-child(1) > div").click()
     table = driver.find_element(By.TAG_NAME, "table")
@@ -42,7 +48,17 @@ if __name__ == "__main__":
             "Water-level"   : h.find_elements(By.TAG_NAME, 'td')[4].text,
             "Status"        : h.find_elements(By.TAG_NAME, 'td')[5].text,
         }
-        print(document)
-        document = jsonable_encoder(document)
-        db_con.flood["waterlvl"].insert_one(document)
+
+        loop.run_until_complete(do_insert(document))
     driver.quit()
+
+
+
+if __name__ == "__main__":
+    main()
+    db_con.close()
+
+
+
+
+
